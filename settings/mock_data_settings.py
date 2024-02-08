@@ -43,15 +43,21 @@ class MockDataSettings:
         return None
 
     @classmethod
+    def process_product(cls, product: dict):
+        if 'price' in product:
+            try:
+                product['price'] = float(product['price'])
+            except ValueError as e:
+                logging.exception(e)
+                product['price'] = 0.0
+
+        return product
+
+    @classmethod
     def _create_product_df(cls, product_data: list[dict], spark_object, mock_params: MockDataParameters):
         if product_data is not None:
-            for product in product_data:
-                if 'price' in product:
-                    try:
-                        product['price'] = float(product['price'])
-                    except ValueError:
-                        # Handle cases where the price value cannot be converted to float
-                        pass
+
+            product_data = list(map(cls.process_product, product_data))
 
             product_schema = StructType([
                 StructField('id', IntegerType(), False),
