@@ -43,7 +43,7 @@ class MockDataSettings:
         return None
 
     @classmethod
-    def process_product(cls, product: dict):
+    def _process_product(cls, product: dict):
         if 'price' in product:
             try:
                 product['price'] = float(product['price'])
@@ -57,7 +57,7 @@ class MockDataSettings:
     def _create_product_df(cls, product_data: list[dict], spark_object, mock_params: MockDataParameters):
         if product_data is not None:
 
-            product_data = list(map(cls.process_product, product_data))
+            product_data = list(map(cls._process_product, product_data))
 
             product_schema = StructType([
                 StructField('id', IntegerType(), False),
