@@ -7,13 +7,12 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-class Tables :
+
+class Tables:
     def __init__(self,conn,cursor):
 
         self.conn = conn
         self.cursor = cursor
-        self.create_tables()
-
 
     def create_tables(self):
         try:
@@ -38,7 +37,9 @@ class Tables :
         name varchar(13),
         description varchar(255),
         category varchar(20),
-        picture varchar(500),
+        picture TEXT,
+        price float8,
+        rate float4,
         added_at timestamp DEFAULT CURRENT_TIMESTAMP,
         valid_product boolean DEFAULT TRUE);
         """)
@@ -75,6 +76,8 @@ class Tables :
         public.customers(
         id integer PRIMARY KEY,
         name_customer varchar(20),
+        gender varchar(10),
+        country varchar(20),
         description_customer varchar(255),
         creation_date timestamp DEFAULT CURRENT_TIMESTAMP,
         modified_date timestamp DEFAULT CURRENT_TIMESTAMP,

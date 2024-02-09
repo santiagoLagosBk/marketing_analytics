@@ -1,2 +1,5 @@
 .venv
 .idea
+settings/__pycache__/
+.env
+settings/checkpoints
