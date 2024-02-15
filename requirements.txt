@@ -3,3 +3,4 @@ pyspark==3.5.0
 python-dotenv
 confluent-kafka
 requests
+faker
