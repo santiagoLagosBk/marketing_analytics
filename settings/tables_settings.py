@@ -48,9 +48,9 @@ class Tables:
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS
         public.campaign(
-        id integer PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         uuid_campaign uuid DEFAULT gen_random_uuid(),
-        name varchar(20),
+        name varchar(200),
         created_by varchar(200),
         description varchar(255),
         valid_campaign boolean DEFAULT TRUE,
@@ -75,6 +75,7 @@ class Tables:
         CREATE TABLE IF NOT EXISTS
         public.customers(
         id integer PRIMARY KEY,
+        campaign_id uuid,
         name_customer varchar(20),
         gender varchar(10),
         country varchar(20),
@@ -88,7 +89,7 @@ class Tables:
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS 
         public.campaign_product_interactions(
-        id integer PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         product_id integer NOT NULL,
         campaign_id integer NOT NULL,
         linked_date  timestamp DEFAULT CURRENT_TIMESTAMP,
