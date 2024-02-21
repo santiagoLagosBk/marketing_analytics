@@ -1,3 +1,5 @@
+import os
+
 import requests
 import logging
 from dataclasses import dataclass
@@ -143,7 +145,7 @@ class MockDataSettings:
 
         kafka_options = {
             "kafka.bootstrap.servers": "localhost:9092",
-            "topic": "customers"
+            "topic": str(os.getenv("CUSTOMERS_TOPIC"))
         }
 
         (df.write.
@@ -258,6 +260,7 @@ class MockDataSettings:
 
             mock_data_settings._create_customers_data(mock_params, campaigns, mock_data_settings._spark)
 
+            mock_data_settings._spark.stop()
             return 'successfully created'
 
         except Exception as e:
