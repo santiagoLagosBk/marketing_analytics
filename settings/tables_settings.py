@@ -62,7 +62,7 @@ class Tables:
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS 
         public.events(
-        id integer PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         customer_id integer NOT NULL,
         campaign_id integer NOT NULL,
         type_event varchar(20),
