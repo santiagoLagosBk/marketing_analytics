@@ -67,7 +67,7 @@ class EventsStream:
             else:
 
                 self.msg_process(msg, spark_obj)
-            print(msg)
+
     def create_random_event(self, event_name: str, user_agent: str) -> dict:
         Faker.seed(0)
         return {
