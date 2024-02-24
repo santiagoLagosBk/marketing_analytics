@@ -47,7 +47,6 @@ if __name__ == '__main__':
                                           customers_count=customers_count)
 
     response = MockDataSettings.create_mock_data(mock_params=mock_data_params)
-    print(response)
 
 
 
