@@ -78,7 +78,7 @@ def aggregate_by_campaign_id(spark_obj: SparkSession):
                                   .writeStream
                                   .format("kafka")
                                   .option("kafka.bootstrap.servers", "localhost:9092")
-                                  .option("topic", "events-country")
+                                  .option("topic", "events-country-aggregation")
                                   .option("checkpointLocation", "./checkpoints/checkpoint1")
                                   .outputMode("update")
                                   .start())
@@ -88,7 +88,7 @@ def aggregate_by_campaign_id(spark_obj: SparkSession):
                                       .writeStream
                                       .format("kafka")
                                       .option("kafka.bootstrap.servers", "localhost:9092")
-                                      .option("topic", "events-campaign")
+                                      .option("topic", "events-campaign-aggregation")
                                       .option("checkpointLocation", "./checkpoints/checkpoint2")
                                       .outputMode("update")
                                       .start())
