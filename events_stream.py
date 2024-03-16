@@ -47,7 +47,7 @@ class EventsStream:
     def start_consuming(self, spark_obj):
         conf = {
             'bootstrap.servers': 'localhost:9092',  # Kafka broker(s) address
-            'group.id': 'consume_mock_event010',  # Consumer group ID
+            'group.id': 'consumecustomertopic01',  # Consumer group ID
             'auto.offset.reset': 'earliest'  # Start consuming from the beginning of the kafka topic
         }
 
@@ -66,7 +66,6 @@ class EventsStream:
                 elif msg.error():
                     raise KafkaException(msg.error())
             else:
-
                 self.msg_process(msg, spark_obj)
             time.sleep(0.5)
 
@@ -140,9 +139,9 @@ class EventsStream:
                 StructField("gender", StringType()),
                 StructField("email", StringType()),
                 StructField("user_agent", StringType()),
-                StructField("country", StringType(), False),
-                StructField("city", StringType(), False),
-                StructField("state", StringType(), False)
+                StructField("country", StringType()),
+                StructField("city", StringType()),
+                StructField("state", StringType())
             ])
 
         df_events = spark_obj.createDataFrame(events_for_customer, df_event_schema)

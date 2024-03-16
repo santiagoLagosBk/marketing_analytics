@@ -4,6 +4,10 @@ from pyspark.sql.types import (StructType, StructField,
                                IntegerType, StringType, TimestampType)
 
 from user_agents import parse
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 schema_events = StructType(
     [
@@ -40,8 +44,8 @@ def parse_device_brand(user_agent):
     return ua.device.brand if ua.device else 'None'
 
 
-def aggregation_by_country(df):
-    return df.groupBy("country").count().alias("total_events_by_country")
+def aggregation_by_city(df):
+    return df.groupBy("city").count().alias("total_events_by_city")
 
 
 def aggregation_event_type_by_campaign_id(df):
@@ -53,7 +57,7 @@ def aggregate_by_campaign_id(spark_obj: SparkSession):
           readStream.
           format("kafka").
           option("kafka.bootstrap.servers", "localhost:9092").
-          option("subscribe", "events").
+          option("subscribe", os.getenv("EVENTS_TOPIC")).
           option("startingOffsets", "earliest").
           load().
           selectExpr("CAST(value AS STRING)").
@@ -73,7 +77,7 @@ def aggregate_by_campaign_id(spark_obj: SparkSession):
 
     enrichment_data = events_df.withWatermark("event_date", delayThreshold="1 minutes")
 
-    events_by_country_to_kafka = (aggregation_by_country(enrichment_data)
+    events_by_country_to_kafka = (aggregation_by_city(enrichment_data)
                                   .selectExpr("to_json(struct(*)) AS value")
                                   .writeStream
                                   .format("kafka")
@@ -101,7 +105,7 @@ if __name__ == '__main__':
     spark = (SparkSession.
              builder.
              appName("Realtime Aggregations").
-             master("local[*]").
+             master("local[3]").
              config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0").
              config("spark.jars", "/home/santiago/PycharmProjects/marketing_analytics/packages/postgresql-42.7.1.jar").
              config("spark.sql.adaptive.enabled", "false").
