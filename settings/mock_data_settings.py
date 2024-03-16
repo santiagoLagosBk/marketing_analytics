@@ -107,7 +107,9 @@ class MockDataSettings:
 
         user_data = response.json()['results']
 
-        email_domains = ['gmail', 'hotmail']
+        email_domains = ['gmail', 'hotmail', 'outlook', 'yahoo.com',
+                         'icloud.com', 'mail.com', 'tutanota.com', 'fastmail.com',
+                         'verizon.net','godaddy.com']
 
         customer_list = []
 
@@ -125,7 +127,9 @@ class MockDataSettings:
                     'name_customer': '{} {}'.format(user['name']['first'], user['name']['last']),
                     'description_customer': user['location']['timezone']['description'],
                     'gender': user['gender'],
-                    'country': user['location']['country']
+                    'country': user['location']['country'],
+                    'city': user['location']['city'],
+                    'state': user['location']['state']
                 })
 
         customers_schema = StructType([
@@ -135,7 +139,9 @@ class MockDataSettings:
             StructField('name_customer', StringType(), False),
             StructField('description_customer', StringType(), False),
             StructField('gender', StringType(), False),
-            StructField('country', StringType(), False)
+            StructField('country', StringType(), False),
+            StructField('city', StringType(), False),
+            StructField('state', StringType(), False)
         ])
 
         df = spark_object.createDataFrame(customer_list, customers_schema)

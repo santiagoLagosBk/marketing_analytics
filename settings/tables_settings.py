@@ -64,8 +64,13 @@ class Tables:
         public.events(
         id SERIAL PRIMARY KEY,
         customer_id integer NOT NULL,
-        campaign_id integer NOT NULL,
-        type_event varchar(20),
+        campaign_id varchar(150) NOT NULL,
+        type_event varchar(50),
+        gender varchar(50),
+        email varchar(50),
+        country varchar(20),
+        city varchar(30),
+        state varchar(30),
         event_date timestamp DEFAULT CURRENT_TIMESTAMP,
         user_agent varchar(255)
         );""")
@@ -78,7 +83,10 @@ class Tables:
         campaign_id uuid,
         name_customer varchar(20),
         gender varchar(10),
+        email varchar(30),
         country varchar(20),
+        city varchar(30),
+        state varchar(30),
         description_customer varchar(255),
         creation_date timestamp DEFAULT CURRENT_TIMESTAMP,
         modified_date timestamp DEFAULT CURRENT_TIMESTAMP,

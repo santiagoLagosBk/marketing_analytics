@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime
 from typing import List, Dict, Any
 
@@ -35,7 +36,7 @@ hard_bounce_event = os.getenv("HARD_BOUNCE_EVENT")
 
 EVENTS_LIST = [sent_event, delivered_event, opened_event, clicked_event, forwarded_event]
 
-PROBABILITIES = [0.2, 0.2, 0.6, 0.2, 0.2]
+PROBABILITIES = [0.1, 0.3, 0.6, 0.2, 0.2]
 
 
 class EventsStream:
@@ -46,7 +47,7 @@ class EventsStream:
     def start_consuming(self, spark_obj):
         conf = {
             'bootstrap.servers': 'localhost:9092',  # Kafka broker(s) address
-            'group.id': 'consume_mock_event01',  # Consumer group ID
+            'group.id': 'consumecustomertopic01',  # Consumer group ID
             'auto.offset.reset': 'earliest'  # Start consuming from the beginning of the kafka topic
         }
 
@@ -65,9 +66,9 @@ class EventsStream:
                 elif msg.error():
                     raise KafkaException(msg.error())
             else:
-
                 self.msg_process(msg, spark_obj)
-            print(msg)
+            time.sleep(0.5)
+
     def create_random_event(self, event_name: str, user_agent: str) -> dict:
         Faker.seed(0)
         return {
@@ -110,7 +111,7 @@ class EventsStream:
 
         customer_events = []
         for event_name in list_final_events:
-            selected_keys = ["customer_id", "campaign_id"]
+            selected_keys = ["customer_id", "campaign_id", "country", "gender", "email", "city", "state"]
             extra_event = self.create_random_event(event_name, user_agent)
             event = {key: customer.get(key) for key in selected_keys} | extra_event
             customer_events.append(event)
@@ -131,12 +132,16 @@ class EventsStream:
 
         df_event_schema = StructType(
             [
-
-                StructField("customer_id", IntegerType()),
-                StructField("campaign_id", StringType()),
-                StructField("type_event", StringType()),
-                StructField("event_date", TimestampType()),
-                StructField("user_agent", StringType())
+                StructField("customer_id", IntegerType(), False),
+                StructField("campaign_id", StringType(), False),
+                StructField("type_event", StringType(), False),
+                StructField("event_date", TimestampType(), False),
+                StructField("gender", StringType()),
+                StructField("email", StringType()),
+                StructField("user_agent", StringType()),
+                StructField("country", StringType()),
+                StructField("city", StringType()),
+                StructField("state", StringType())
             ])
 
         df_events = spark_obj.createDataFrame(events_for_customer, df_event_schema)
