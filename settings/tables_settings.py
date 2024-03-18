@@ -72,7 +72,8 @@ class Tables:
         city varchar(30),
         state varchar(30),
         event_date timestamp DEFAULT CURRENT_TIMESTAMP,
-        user_agent varchar(255)
+        user_agent varchar(255),
+        product_id INTEGER
         );""")
 
     def create_customers_table(self):

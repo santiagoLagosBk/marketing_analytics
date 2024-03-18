@@ -109,7 +109,7 @@ class MockDataSettings:
 
         email_domains = ['gmail', 'hotmail', 'outlook', 'yahoo.com',
                          'icloud.com', 'mail.com', 'tutanota.com', 'fastmail.com',
-                         'verizon.net','godaddy.com']
+                         'verizon.net', 'godaddy.com']
 
         customer_list = []
 

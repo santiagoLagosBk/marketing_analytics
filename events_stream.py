@@ -26,17 +26,35 @@ database = os.environ.get('DATABASE')
 user = os.environ.get('USER_NAME')
 password = os.environ.get('PASSWORD')
 
-sent_event = os.getenv("SENT_EVENT")
-delivered_event = os.getenv("DELIVERED_EVENT")
-opened_event = os.getenv("OPENED_EVENT")
-clicked_event = os.getenv("CLICKED_EVENT")
-forwarded_event = os.getenv("FORWARDED_EVENT")
-spam_event = os.getenv("SPAM_EVENT")
-hard_bounce_event = os.getenv("HARD_BOUNCE_EVENT")
+SENT_EVENT = os.getenv("SENT_EVENT")
+DELIVERED_EVENT = os.getenv("DELIVERED_EVENT")
+OPENED_EVENT = os.getenv("OPENED_EVENT")
+CLICKED_EVENT = os.getenv("CLICKED_EVENT")
+FORWARDED_EVENT = os.getenv("FORWARDED_EVENT")
+SPAM_EVENT = os.getenv("SPAM_EVENT")
+HARD_BOUNCE_EVENT = os.getenv("HARD_BOUNCE_EVENT")
 
-EVENTS_LIST = [sent_event, delivered_event, opened_event, clicked_event, forwarded_event]
+EVENTS_LIST = [SENT_EVENT, DELIVERED_EVENT, OPENED_EVENT, CLICKED_EVENT, FORWARDED_EVENT]
 
 PROBABILITIES = [0.1, 0.3, 0.6, 0.2, 0.2]
+
+
+def get_product_list(spark_obj)-> list:
+
+    url = ('jdbc:postgresql://{}:{}/{}'.
+           format(host, port, database))
+
+    df_products = (spark_obj.read.format("jdbc").
+                   option("url", url).
+                   option("dbtable", 'product').
+                   option("user", user).
+                   option("password", password).
+                   option("driver", "org.postgresql.Driver").load())
+
+    list_of_products = list(map(lambda x: x.id, df_products.collect()))
+    df_products.unpersist()
+
+    return list_of_products
 
 
 class EventsStream:
@@ -44,7 +62,7 @@ class EventsStream:
     def __init__(self):
         pass
 
-    def start_consuming(self, spark_obj):
+    def start_consuming(self, spark_obj, list_products):
         conf = {
             'bootstrap.servers': 'localhost:9092',  # Kafka broker(s) address
             'group.id': 'consumecustomertopic01',  # Consumer group ID
@@ -66,18 +84,25 @@ class EventsStream:
                 elif msg.error():
                     raise KafkaException(msg.error())
             else:
-                self.msg_process(msg, spark_obj)
+                self.msg_process(msg, spark_obj, list_products)
             time.sleep(0.5)
 
-    def create_random_event(self, event_name: str, user_agent: str) -> dict:
+    def create_random_event(self, event_name: str, user_agent: str, id_product: int) -> dict:
         Faker.seed(0)
-        return {
+
+        metadata_event = {
             "type_event": event_name,
             "user_agent": user_agent,
             "event_date": datetime.utcnow()
         }
 
-    def process_event(self, customer: dict) -> list[dict[str, Any | None]]:
+
+        if event_name == CLICKED_EVENT:
+            metadata_event["product_id"] = id_product
+
+        return metadata_event
+
+    def process_event(self, customer: dict, product_id:int) -> list[dict[str, Any | None]]:
 
         customer['customer_id'] = customer.pop('id')
 
@@ -96,7 +121,7 @@ class EventsStream:
 
         # Handle error events if the number of events is 1 or less and there's a chance of error
         if num_events <= 1 and possible_errors == 'error':
-            option_error_events = [spam_event, hard_bounce_event]
+            option_error_events = [SPAM_EVENT, HARD_BOUNCE_EVENT]
 
             # Randomly select an error event and append it to the final events list
             event_to_append = random.choices(option_error_events, weights=weight_option_error, k=1)[0]
@@ -112,15 +137,17 @@ class EventsStream:
         customer_events = []
         for event_name in list_final_events:
             selected_keys = ["customer_id", "campaign_id", "country", "gender", "email", "city", "state"]
-            extra_event = self.create_random_event(event_name, user_agent)
+            extra_event = self.create_random_event(event_name, user_agent, product_id)
             event = {key: customer.get(key) for key in selected_keys} | extra_event
             customer_events.append(event)
 
         return customer_events
 
-    def msg_process(self, msg, spark_obj):
+    def msg_process(self, msg, spark_obj, list_products):
         customer = json.loads(msg.value().decode('utf-8'))
-        events_for_customer = self.process_event(customer)
+        product_id = random.choice(list_products)
+
+        events_for_customer = self.process_event(customer, product_id)
 
         kafka_options = {
             "kafka.bootstrap.servers": "localhost:9092",
@@ -141,7 +168,8 @@ class EventsStream:
                 StructField("user_agent", StringType()),
                 StructField("country", StringType()),
                 StructField("city", StringType()),
-                StructField("state", StringType())
+                StructField("state", StringType()),
+                StructField("product_id", IntegerType(),nullable=True)
             ])
 
         df_events = spark_obj.createDataFrame(events_for_customer, df_event_schema)
@@ -176,6 +204,8 @@ if __name__ == '__main__':
              getOrCreate())
 
     event_stream = EventsStream()
-    event_stream.start_consuming(spark_obj=spark)
+    list_of_products = get_product_list(spark_obj=spark)
+
+    event_stream.start_consuming(spark_obj=spark, list_products=list_of_products)
 
     spark.stop()

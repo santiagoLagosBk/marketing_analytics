@@ -1,3 +1,4 @@
+import pyspark.sql
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as f
 from pyspark.sql.types import (StructType, StructField,
@@ -50,6 +51,21 @@ def aggregation_by_city(df):
 
 def aggregation_event_type_by_campaign_id(df):
     return df.groupBy("campaign_id", "type_event").count().alias("count_events_by_campaign_id")
+
+
+def most_likely_product_by_campaign(df: pyspark.sql.DataFrame) -> pyspark.sql.DataFrame:
+    """
+    This method is used to aggregate the most likely product
+    by campaign this is obtained from the count of click events.
+
+    The click events contain the id of the product that was tented to get by the client.
+
+    :param df: this is the data frame containing the entire list of events (batch of events)
+    :return:
+    """
+
+
+    pass
 
 
 def aggregate_by_campaign_id(spark_obj: SparkSession):
