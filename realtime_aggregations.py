@@ -39,7 +39,14 @@ def aggregate_by_city(df):
 
 
 def aggregate_event_type_by_campaign_id(df):
-    return df.groupBy("campaign_id", "type_event").count().withColumnRenamed("count", "count_events_by_campaign_id")
+
+    return df.groupBy("campaign_id").agg(
+        f.sum(f.when(f.col('type_event') == 'DELIVERED_EVENT', 1).otherwise(0)).alias('DELIVERED'),
+        f.sum(f.when(f.col('type_event') == 'CLICKED', 1).otherwise(0)).alias('CLICKED'),
+        f.sum(f.when(f.col('type_event') == 'SPAM', 1).otherwise(0)).alias('SPAM'),
+        f.sum(f.when(f.col('type_event') == 'OPENED', 1).otherwise(0)).alias('OPENED'),
+        f.sum(f.when(f.col('type_event') == 'SENT', 1).otherwise(0)).alias('SENT'),
+    ).fillna(0)
 
 
 def get_products(spark_obj) -> pyspark.sql.DataFrame:
@@ -193,4 +200,3 @@ if __name__ == '__main__':
 
     events_by_country_stream.awaitTermination()
     events_by_campaign_stream.awaitTermination()
-    loved_product_by_campaign_stream.awaitTermination()
