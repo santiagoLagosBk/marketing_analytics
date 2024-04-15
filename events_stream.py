@@ -14,11 +14,11 @@ from pyspark.sql import SparkSession
 
 from dotenv import load_dotenv
 import os
+import random
 
 load_dotenv()
 
 fake = Faker()
-import random
 
 host = os.environ.get('HOST')
 port = os.environ.get('PORT')
@@ -65,7 +65,7 @@ class EventsStream:
     def start_consuming(self, spark_obj, list_products):
         conf = {
             'bootstrap.servers': 'localhost:9092',  # Kafka broker(s) address
-            'group.id': 'consumecustomertopic01',  # Consumer group ID
+            'group.id': 'consumer-topic-clients',  # Consumer group ID
             'auto.offset.reset': 'earliest'  # Start consuming from the beginning of the kafka topic
         }
 
@@ -169,7 +169,7 @@ class EventsStream:
                 StructField("country", StringType()),
                 StructField("city", StringType()),
                 StructField("state", StringType()),
-                StructField("product_id", IntegerType(),nullable=True)
+                StructField("product_id", IntegerType(), nullable=True)
             ])
 
         df_events = spark_obj.createDataFrame(events_for_customer, df_event_schema)
