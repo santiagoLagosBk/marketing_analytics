@@ -21,6 +21,7 @@ DATABASES = os.environ.get('DATABASE')
 USER = os.environ.get('USER_NAME')
 PASSWORD = os.environ.get('PASSWORD')
 CLICK_EVENT = 'CLICKED'
+OPEN_EVENT = 'OPENED'
 
 
 
@@ -47,6 +48,17 @@ def aggregate_event_type_by_campaign_id(df):
         f.sum(f.when(f.col('type_event') == 'OPENED', 1).otherwise(0)).alias('OPENED'),
         f.sum(f.when(f.col('type_event') == 'SENT', 1).otherwise(0)).alias('SENT'),
     ).fillna(0)
+
+
+def aggregate_effectiveness_by_campaign_id(df):
+
+    df_main_events = df.filter((df.type_event == 'CLICKED') | (df.type_event == 'OPENED'))
+
+    unique_events = df_main_events. \
+        groupBy(["campaign_id", "customer_id", "type_event"]). \
+        agg(f.count('type_event').alias('total_events'))
+
+    return unique_events
 
 
 def get_products(spark_obj) -> pyspark.sql.DataFrame:
@@ -155,8 +167,8 @@ def read_kafka_stream(spark_obj):
           .select(f.from_json(f.col("value"), schema_events).alias("data"))
           .select("data.*"))
 
+    # Data preprocessing
     parse_user_agent_udf = f.udf(parse_user_agent, StringType())
-
     events_topic_df = (df
                        .withColumn("event_date", f.col("event_date").cast(TimestampType()))
                        .withColumn("user_agent_info", parse_user_agent_udf("user_agent")))
@@ -194,9 +206,14 @@ if __name__ == '__main__':
     events_by_campaign_stream = write_to_kafka_stream(
         aggregate_event_type_by_campaign_id(events_df), "events-campaign-aggregation", "./checkpoints/checkpoint2")
 
-    loved_product_by_campaign_stream = write_to_kafka_stream(
-        aggregate_most_loved_product_by_campaign(events_df, get_products(spark_obj=spark)),
-        "loved-product-aggregation", "./checkpoints/checkpoint3")
+    effectiveness_campaign_stream = write_to_kafka_stream(
+        aggregate_effectiveness_by_campaign_id(events_df), "campaign-effectiveness", "./checkpoints/checkpoint3"
+    )
+
+    #loved_product_by_campaign_stream = write_to_kafka_stream(
+    #    aggregate_most_loved_product_by_campaign(events_df, get_products(spark_obj=spark)),
+    #    "loved-product-aggregation", "./checkpoints/checkpoint3")
 
     events_by_country_stream.awaitTermination()
     events_by_campaign_stream.awaitTermination()
+    effectiveness_campaign_stream.awaitTermination()

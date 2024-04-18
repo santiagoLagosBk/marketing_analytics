@@ -39,8 +39,7 @@ EVENTS_LIST = [SENT_EVENT, DELIVERED_EVENT, OPENED_EVENT, CLICKED_EVENT, FORWARD
 PROBABILITIES = [0.1, 0.3, 0.6, 0.2, 0.2]
 
 
-def get_product_list(spark_obj)-> list:
-
+def get_product_list(spark_obj) -> list:
     url = ('jdbc:postgresql://{}:{}/{}'.
            format(host, port, database))
 
@@ -96,13 +95,25 @@ class EventsStream:
             "event_date": datetime.utcnow()
         }
 
-
         if event_name == CLICKED_EVENT:
             metadata_event["product_id"] = id_product
 
         return metadata_event
 
-    def process_event(self, customer: dict, product_id:int) -> list[dict[str, Any | None]]:
+    def get_more_clicks_and_opens(self, list_events: list) -> list:
+
+        if OPENED_EVENT in list_events and CLICKED_EVENT in list_events:
+
+            if self.get_probability_more_click_open_events():
+        
+                idx = list_events.index(OPENED_EVENT)
+                list_events.insert(idx, OPENED_EVENT)
+                list_events.insert(idx+1, CLICKED_EVENT)
+                
+        else:
+            
+
+    def process_event(self, customer: dict, product_id: int) -> list[dict[str, Any | None]]:
 
         customer['customer_id'] = customer.pop('id')
 
@@ -142,6 +153,11 @@ class EventsStream:
             customer_events.append(event)
 
         return customer_events
+
+    @staticmethod
+    def get_probability_more_click_open_events():
+        probability = random.randint(1, 2)
+        return (probability % 2) == 0
 
     def msg_process(self, msg, spark_obj, list_products):
         customer = json.loads(msg.value().decode('utf-8'))
