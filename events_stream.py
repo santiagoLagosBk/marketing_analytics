@@ -110,8 +110,18 @@ class EventsStream:
                 list_events.insert(idx, OPENED_EVENT)
                 list_events.insert(idx+1, CLICKED_EVENT)
                 
-        else:
-            
+        elif OPENED_EVENT in list_events:
+
+            if self.get_probability_more_click_open_events():
+                idx = list_events.index(OPENED_EVENT)
+                list_events.insert(idx, OPENED_EVENT)
+
+        elif CLICKED_EVENT in list_events:
+            if self.get_probability_more_click_open_events():
+                idx = list_events.index(CLICKED_EVENT)
+                list_events.insert(idx, CLICKED_EVENT)
+
+        return list_events
 
     def process_event(self, customer: dict, product_id: int) -> list[dict[str, Any | None]]:
 
@@ -125,6 +135,9 @@ class EventsStream:
 
         # Create a list of events up to the selected event limit
         list_final_events = EVENTS_LIST[:num_events]
+
+        list_final_events = self.get_more_clicks_and_opens(list_final_events)
+
         weight_option_error = [0.7, 0.3]
 
         # Randomly select if there will be any errors or not
