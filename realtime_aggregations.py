@@ -1,14 +1,11 @@
 import logging
 
-import pyspark.sql
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as f
-from pyspark.sql.window import Window
-
-from user_agents import parse
 from pyspark.sql.types import (StructType, StructField,
                                IntegerType, StringType, TimestampType)
 
+from user_agents import parse
 from dotenv import load_dotenv
 import os
 
@@ -24,22 +21,22 @@ CLICK_EVENT = 'CLICKED'
 OPEN_EVENT = 'OPENED'
 
 
-
-def parse_user_agent(user_agent):
-    ua_data = parse(user_agent)
+def parse_user_agent(user_agent: str) -> dict:
+    ua = parse(user_agent)
     return {
-        "browser_name": ua_data["user_agent"]["family"] if ua_data["user_agent"] else 'None',
-        "os_name": ua_data["os"]["family"] if ua_data["os"] else 'None',
-        "device_family": ua_data["device"]["family"] if ua_data["device"] else 'None',
-        "device_brand": ua_data["device"]["brand"] if ua_data["device"] else 'None'
+        "browser_name": ua.browser.family if ua.browser.family is not None else 'None',
+        "os_name": ua.os.family if ua.os.family is not None else 'None',
+        "device_family": ua.device.family if ua.device.family is not None else 'None',
+        "device_brand": ua.device.brand if ua.device.brand is not None else 'None'
     }
 
 
-def aggregate_by_city(df):
-    return df.groupBy("city").count().alias("total_events_by_city")
+def group_by_campaign_country(df: DataFrame) -> DataFrame:
+
+    return df.groupBy("campaign_id", "city").count().alias("total_events_by_city")
 
 
-def aggregate_event_type_by_campaign_id(df):
+def group_by_campaign_event_type(df: DataFrame) -> DataFrame:
 
     return df.groupBy("campaign_id").agg(
         f.sum(f.when(f.col('type_event') == 'DELIVERED_EVENT', 1).otherwise(0)).alias('DELIVERED'),
@@ -50,7 +47,7 @@ def aggregate_event_type_by_campaign_id(df):
     ).fillna(0)
 
 
-def aggregate_effectiveness_by_campaign_id(df):
+def aggregate_effectiveness_by_campaign_id(df: DataFrame) -> DataFrame:
 
     df_main_events = df.filter((df.type_event == 'CLICKED') | (df.type_event == 'OPENED'))
 
@@ -61,7 +58,7 @@ def aggregate_effectiveness_by_campaign_id(df):
     return unique_events
 
 
-def get_products(spark_obj) -> pyspark.sql.DataFrame:
+def get_products(spark_obj) -> DataFrame:
     """
     Get product data from the database.
 
@@ -87,8 +84,8 @@ def get_products(spark_obj) -> pyspark.sql.DataFrame:
         return None
 
 
-def aggregate_most_loved_product_by_campaign(df_events: pyspark.sql.DataFrame,
-                                             df_products: pyspark.sql.DataFrame) -> pyspark.sql.DataFrame:
+def aggregate_most_loved_product_by_campaign(df_events: DataFrame,
+                                             df_products: DataFrame) -> DataFrame:
     """
     Aggregate the most loved product by campaign.
 
@@ -165,15 +162,9 @@ def read_kafka_stream(spark_obj):
           .load()
           .selectExpr("CAST(value AS STRING)")
           .select(f.from_json(f.col("value"), schema_events).alias("data"))
-          .select("data.*"))
+          .select("data.*").withColumn("event_date", f.col("event_date").cast(TimestampType())))
 
-    # Data preprocessing
-    parse_user_agent_udf = f.udf(parse_user_agent, StringType())
-    events_topic_df = (df
-                       .withColumn("event_date", f.col("event_date").cast(TimestampType()))
-                       .withColumn("user_agent_info", parse_user_agent_udf("user_agent")))
-
-    return events_topic_df
+    return df
 
 
 def write_to_kafka_stream(df, topic, checkpoint_location):
@@ -200,11 +191,12 @@ if __name__ == '__main__':
 
     events_df = read_kafka_stream(spark)
 
-    events_by_country_stream = write_to_kafka_stream(
-        aggregate_by_city(events_df), "events-country-aggregation", "./checkpoints/checkpoint1")
+    df_campaign_country = write_to_kafka_stream(
+        group_by_campaign_country(events_df), "events-country-aggregation", "./checkpoints/checkpoint1")
 
-    events_by_campaign_stream = write_to_kafka_stream(
-        aggregate_event_type_by_campaign_id(events_df), "events-campaign-aggregation", "./checkpoints/checkpoint2")
+    df_campaign_event_type = write_to_kafka_stream(
+        group_by_campaign_event_type(events_df), "events-campaign-aggregation", "./checkpoints/checkpoint2")
+
 
     effectiveness_campaign_stream = write_to_kafka_stream(
         aggregate_effectiveness_by_campaign_id(events_df), "campaign-effectiveness", "./checkpoints/checkpoint3"
@@ -214,6 +206,6 @@ if __name__ == '__main__':
     #    aggregate_most_loved_product_by_campaign(events_df, get_products(spark_obj=spark)),
     #    "loved-product-aggregation", "./checkpoints/checkpoint3")
 
-    events_by_country_stream.awaitTermination()
-    events_by_campaign_stream.awaitTermination()
+    df_campaign_country.awaitTermination()
+    df_campaign_event_type.awaitTermination()
     effectiveness_campaign_stream.awaitTermination()
