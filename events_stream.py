@@ -1,11 +1,11 @@
 import json
 import time
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any
 
 from pyspark.sql.types import (StructType, StructField,
-                               IntegerType, StringType, FloatType, BooleanType, TimestampType)
-from confluent_kafka import Consumer, KafkaException, KafkaError, SerializingProducer
+                               IntegerType, StringType, TimestampType)
+from confluent_kafka import Consumer, KafkaException, KafkaError
 from random import choice
 from faker import Faker
 import sys

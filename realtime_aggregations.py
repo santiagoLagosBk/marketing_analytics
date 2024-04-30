@@ -11,7 +11,6 @@ import os
 
 load_dotenv()
 
-
 HOST = os.environ.get('HOST')
 PORT = os.environ.get('PORT')
 DATABASES = os.environ.get('DATABASE')
@@ -32,12 +31,10 @@ def parse_user_agent(user_agent: str) -> dict:
 
 
 def group_by_campaign_country(df: DataFrame) -> DataFrame:
-
     return df.groupBy("campaign_id", "city").count().alias("total_events_by_city")
 
 
 def group_by_campaign_event_type(df: DataFrame) -> DataFrame:
-
     return df.groupBy("campaign_id").agg(
         f.sum(f.when(f.col('type_event') == 'DELIVERED_EVENT', 1).otherwise(0)).alias('DELIVERED'),
         f.sum(f.when(f.col('type_event') == 'CLICKED', 1).otherwise(0)).alias('CLICKED'),
@@ -48,7 +45,6 @@ def group_by_campaign_event_type(df: DataFrame) -> DataFrame:
 
 
 def aggregate_effectiveness_by_campaign_id(df: DataFrame) -> DataFrame:
-
     df_main_events = df.filter((df.type_event == 'CLICKED') | (df.type_event == 'OPENED'))
 
     unique_events = df_main_events. \
@@ -163,7 +159,7 @@ def read_kafka_stream(spark_obj):
           .selectExpr("CAST(value AS STRING)")
           .select(f.from_json(f.col("value"), schema_events).alias("data"))
           .select("data.*").withColumn("event_date", f.col("event_date").cast(TimestampType())))
-
+    df = df.withWatermark('event_date', '1 second')
     return df
 
 
@@ -197,14 +193,9 @@ if __name__ == '__main__':
     df_campaign_event_type = write_to_kafka_stream(
         group_by_campaign_event_type(events_df), "events-campaign-aggregation", "./checkpoints/checkpoint2")
 
-
     effectiveness_campaign_stream = write_to_kafka_stream(
         aggregate_effectiveness_by_campaign_id(events_df), "campaign-effectiveness", "./checkpoints/checkpoint3"
     )
-
-    #loved_product_by_campaign_stream = write_to_kafka_stream(
-    #    aggregate_most_loved_product_by_campaign(events_df, get_products(spark_obj=spark)),
-    #    "loved-product-aggregation", "./checkpoints/checkpoint3")
 
     df_campaign_country.awaitTermination()
     df_campaign_event_type.awaitTermination()
