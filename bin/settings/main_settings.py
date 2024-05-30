@@ -1,6 +1,6 @@
-from settings.tables_settings import Tables
+from bin.settings.db_settings.tables_settings import Tables
 
-from settings.mock_data_settings import MockDataSettings, MockDataParameters
+from bin.settings.mock_data_settings import MockDataSettings, MockDataParameters
 
 import psycopg2
 import logging
