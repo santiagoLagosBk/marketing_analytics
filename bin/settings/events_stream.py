@@ -105,11 +105,10 @@ class EventsStream:
         if OPENED_EVENT in list_events and CLICKED_EVENT in list_events:
 
             if self.get_probability_more_click_open_events():
-        
                 idx = list_events.index(OPENED_EVENT)
                 list_events.insert(idx, OPENED_EVENT)
-                list_events.insert(idx+1, CLICKED_EVENT)
-                
+                list_events.insert(idx + 1, CLICKED_EVENT)
+
         elif OPENED_EVENT in list_events:
 
             if self.get_probability_more_click_open_events():

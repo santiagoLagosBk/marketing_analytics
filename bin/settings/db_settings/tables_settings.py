@@ -29,7 +29,7 @@ class Tables:
 
 
     def create_product_table(self):
-        self.cursor.execute("""
+        self.cursor.execute(""" 
         CREATE TABLE IF NOT EXISTS
         public.product (
         id integer PRIMARY KEY,

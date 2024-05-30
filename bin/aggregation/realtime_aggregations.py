@@ -30,7 +30,7 @@ def parse_user_agent(user_agent: str) -> dict:
     }
 
 
-def group_by_campaign_country(df: DataFrame) -> DataFrame:
+def group_by_campaign_city(df: DataFrame) -> DataFrame:
     return df.groupBy("campaign_id", "city").count().alias("total_events_by_city")
 
 
@@ -80,59 +80,6 @@ def get_products(spark_obj) -> DataFrame:
         return None
 
 
-def aggregate_most_loved_product_by_campaign(df_events: DataFrame,
-                                             df_products: DataFrame) -> DataFrame:
-    """
-    Aggregate the most loved product by campaign.
-
-    :param df_events: DataFrame containing event data.
-    :param df_products: DataFrame containing product data.
-    :return: DataFrame with aggregated results.
-    """
-
-    # Aggregate count of clicks per product and campaign
-    df_click_count = df_events.filter(df_events.type_event == "CLICK_EVENT") \
-        .groupBy(["campaign_id", "product_id"]) \
-        .count() \
-        .withColumnRenamed("count", "count_product_id")
-
-    # Find the maximum count for each campaign
-    max_count_df = df_click_count.groupBy("campaign_id").agg(f.max("count_product_id").alias("max_count"))
-
-    # Join to get the product with the maximum count for each campaign
-    most_loved_products_df = max_count_df.alias("a"). \
-        join(
-        df_click_count.alias("b"),
-        [
-            max_count_df.campaign_id == df_click_count.campaign_id,
-            max_count_df.max_count == df_click_count.count_product_id
-        ],
-        "inner"
-    ) \
-        .select("b.campaign_id",
-                "b.product_id",
-                "b.count_product_id")
-
-    result_df = most_loved_products_df.alias("ml") \
-        .join(
-        df_products.alias("pr"),
-        [
-            most_loved_products_df.product_id == df_products.id
-        ],
-        "inner"
-    ) \
-        .select(
-        "ml.campaign_id",
-        "ml.product_id",
-        "pr.title",
-        "pr.category",
-        "pr.image",
-        "pr.price"
-    )
-
-    return result_df
-
-
 def read_kafka_stream(spark_obj):
     schema_events = StructType(
         [
@@ -159,7 +106,7 @@ def read_kafka_stream(spark_obj):
           .selectExpr("CAST(value AS STRING)")
           .select(f.from_json(f.col("value"), schema_events).alias("data"))
           .select("data.*").withColumn("event_date", f.col("event_date").cast(TimestampType())))
-    df = df.withWatermark('event_date', '1 second')
+    df = df.withWatermark('event_date', '1 minute')
     return df
 
 
@@ -187,16 +134,16 @@ if __name__ == '__main__':
 
     events_df = read_kafka_stream(spark)
 
-    df_campaign_country = write_to_kafka_stream(
-        group_by_campaign_country(events_df), "events-country-aggregation", "./checkpoints/checkpoint1")
+    df_campaign_city = write_to_kafka_stream(
+        group_by_campaign_city(events_df), "events-city-aggregation", "./checkpoints/checkpointCityAggregation")
 
     df_campaign_event_type = write_to_kafka_stream(
-        group_by_campaign_event_type(events_df), "events-campaign-aggregation", "./checkpoints/checkpoint2")
+        group_by_campaign_event_type(events_df), "events-campaign-aggregation", "./checkpoints/checkpointCampaignAggregation")
 
     effectiveness_campaign_stream = write_to_kafka_stream(
-        aggregate_effectiveness_by_campaign_id(events_df), "campaign-effectiveness", "./checkpoints/checkpoint3"
+        aggregate_effectiveness_by_campaign_id(events_df), "campaign-effectiveness", "./checkpoints/checkpointEffectiveness"
     )
 
-    df_campaign_country.awaitTermination()
+    df_campaign_city.awaitTermination()
     df_campaign_event_type.awaitTermination()
     effectiveness_campaign_stream.awaitTermination()
