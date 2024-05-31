@@ -1,6 +1,6 @@
-from settings.tables_settings import Tables
+from bin.settings.db_settings.tables_settings import Tables
 
-from settings.mock_data_settings import MockDataSettings, MockDataParameters
+from bin.settings.mock_data_settings import MockDataSettings, MockDataParameters
 
 import psycopg2
 import logging
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     tables.create_tables()
 
     # Populate the tables with data
-    customers_count = 10
+    customers_count = 1000
     mock_data_params = MockDataParameters(host=host, port=port, database=database,
                                           user=user, password=password, logger=logger,
                                           customers_count=customers_count)
