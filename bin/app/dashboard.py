@@ -2,11 +2,14 @@ import time
 from dotenv import load_dotenv
 import os
 import simplejson as json
+import random
 
 import streamlit as st
 import psycopg2
 import pandas as pd
+import plotly.express as px
 from kafka import KafkaConsumer
+import matplotlib.pyplot as plt
 
 # Load environment variables from .env file
 load_dotenv()
@@ -65,52 +68,62 @@ def fetch_data_from_kafka(consumer):
     return data
 
 
+def plot_barplot_chart(df_data: pd.DataFrame):
+    plt.bar(df_data['city'], df_data['count'])
+    plt.tight_layout()
+    return plt
+
+
 @st.cache_data
 def fetch_campaign_city_stats():
     consumer = create_kafka_consumer("events-city-aggregation")
     data = fetch_data_from_kafka(consumer)
-    if len(data) == 0:
-        data = {
-            'campaign_id': ['None'],
-            'city': ['None'],
-            'count': [0]
-        }
-
-    return pd.DataFrame(data).sort_values(by='count', ascending=False).head(10)
+    df = pd.DataFrame(data)
+    df_res = (df.groupby(['city']).agg({'count': 'sum'}).
+              reset_index().
+              rename(columns={'count': 'Total events'}).
+              sort_values(by='Total events', ascending=False).head(10))
+    return df_res
 
 
 def update_data():
     last_refresh = st.empty()
     last_refresh.text(f'Last refresh at: {time.strftime("%Y-%m-%d %H:%M:%S")}')
 
-    # Fetch events statistics from PostgresSQL
+    # Fetch events statistics from PostgreSQL
     total_events, total_customers, most_loved_products = fetch_events_stats()
 
+    # Display metrics in two columns
     st.markdown("""---""")
     col1, col2 = st.columns(2)
     col1.metric('Total events', total_events)
     col2.metric('Total customers', total_customers)
-
+    # Display best-ranked product
     st.markdown("""---""")
     st.title('Best Ranked Product')
 
+    # Create a DataFrame for the most loved products
     columns = ['title', 'image', 'category', 'count_product', 'rank']
-
-    # Create a DataFrame
     df = pd.DataFrame(most_loved_products, columns=columns)
     best_product = df[df['rank'] == 1].iloc[0]
 
+    # Display the best-ranked product details
     col1, col2 = st.columns([1, 2])
-
-
     with col1:
         st.image(best_product['image'], width=200)
-
-    # Display the details in the second column
     with col2:
         st.header(best_product['title'])
         st.subheader(f"Category: {best_product['category']}")
         st.subheader(f"Total Count: {best_product['count_product']}")
+
+        # Display data from Kafka
+        st.markdown("""---""")
+        st.subheader('Cities with most events traffic')
+        col1_city, col2_city = st.columns(2)
+        with col1_city:
+            df_city = fetch_campaign_city_stats()
+            fig = px.bar(df_city, x='city', y='Total events', color=df_city['city'])
+            st.plotly_chart(fig)
 
 
 if __name__ == '__main__':
