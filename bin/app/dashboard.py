@@ -1,75 +1,15 @@
 import time
-import os
 import simplejson as json
+import pandas as pd
 from kafka import KafkaConsumer
+from statefull.dashboard_data_db import (get_name_campaigns, fetch_count_total_events,
+                                         fetch_count_total_customers, fetch_most_loved_products)
 
 import streamlit as st
-import psycopg2
-import pandas as pd
 import plotly.express as px
 import matplotlib.pyplot as plt
 
-# Load environment variables from .env file
-from dotenv import load_dotenv
-
-load_dotenv()
-
-host = os.environ.get('HOST')
-port = os.environ.get('PORT')
-database = os.environ.get('DATABASE')
-user = os.environ.get('USER_NAME')
-password = os.environ.get('PASSWORD')
-
-
 st.set_page_config(layout="wide", page_title="Image Background Remover")
-
-
-@st.cache_data
-def get_name_campaigns(id_campaigns: list):
-    connection_string = f'host={host} dbname={database} user={user} password={password}'
-    query = """
-            SELECT uuid_campaign, name 
-            FROM public.campaign 
-            WHERE uuid_campaign IN %s;
-        """
-
-    with psycopg2.connect(connection_string) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (tuple(id_campaigns),))
-            results = cursor.fetchall()
-
-    # Convert the results to a pandas DataFrame
-    df = pd.DataFrame(results, columns=['uuid_campaign', 'name'])
-
-    return df
-
-
-@st.cache_data
-def fetch_events_stats():
-    connection_string = 'host={} dbname={} user={} password={}'.format(host, database, user, password)
-    with psycopg2.connect(connection_string) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute("""SELECT COUNT(*) AS count_events FROM public.events;""")
-            count_total_events = cursor.fetchone()[0]
-
-            cursor.execute("""SELECT COUNT(*) AS total_events FROM public.customers;""")
-            count_total_customers = cursor.fetchone()[0]
-
-            cursor.execute("""
-                WITH events_count AS (
-                    SELECT product_id, COUNT(product_id) count_product
-                    FROM public.events
-                    WHERE product_id IS NOT NULL
-                    GROUP BY product_id ORDER BY count_product DESC LIMIT 10
-                )
-                SELECT pr.title,pr.image,pr.category,ev.count_product, DENSE_RANK() OVER(order by ev.count_product DESC) as rank
-                FROM events_count ev
-                INNER JOIN public.product pr
-                ON ev.product_id = pr.id;
-            """)
-            most_loved_products = cursor.fetchall()
-
-    return count_total_events, count_total_customers, most_loved_products
 
 
 def create_kafka_consumer(topic_name):
@@ -89,6 +29,37 @@ def fetch_data_from_kafka(consumer):
         for sub_message in message:
             data.append(sub_message.value)
     return data
+
+
+@st.cache_data
+def fetch_campaign_city_stats():
+    consumer = create_kafka_consumer("events-city-aggregation")
+    data = fetch_data_from_kafka(consumer)
+    df = pd.DataFrame(data)
+    df_res = (df.groupby(['city']).agg({'count': 'sum'}).
+              reset_index().
+              rename(columns={'count': 'Total events'}).
+              sort_values(by='Total events', ascending=False).head(10))
+    return df_res
+
+
+@st.cache_data
+def fetch_effect_stats() -> pd.DataFrame:
+    consumer = create_kafka_consumer("campaign-effectiveness")
+    data = fetch_data_from_kafka(consumer)
+    df_data = pd.DataFrame(data)
+    df_effect = (df_data.
+                 groupby(['campaign_id', 'type_event'])['total_events'].
+                 count().
+                 reset_index().
+                 fillna(0).
+                 pivot(index='campaign_id', columns='type_event', values='total_events'))
+
+    df_effect['effectiveness'] = df_effect.apply(
+        lambda row: (row['CLICKED'] / row['OPENED']) * 100
+        if row['CLICKED'] <= row['OPENED'] else 100, axis=1)
+
+    return df_effect.sort_values(by=['CLICKED', 'OPENED', 'effectiveness'], ascending=False).reset_index().head(10)
 
 
 def plot_header(total_events, total_customers):
@@ -130,42 +101,15 @@ def plot_effectiveness_chart():
         fig = px.pie(df_merge, values='CLICKED', names='name')
         st.plotly_chart(fig)
 
-@st.cache_data
-def fetch_campaign_city_stats():
-    consumer = create_kafka_consumer("events-city-aggregation")
-    data = fetch_data_from_kafka(consumer)
-    df = pd.DataFrame(data)
-    df_res = (df.groupby(['city']).agg({'count': 'sum'}).
-              reset_index().
-              rename(columns={'count': 'Total events'}).
-              sort_values(by='Total events', ascending=False).head(10))
-    return df_res
 
-@st.cache_data
-def fetch_effect_stats() -> pd.DataFrame:
-    consumer = create_kafka_consumer("campaign-effectiveness")
-    data = fetch_data_from_kafka(consumer)
-    df_data = pd.DataFrame(data)
-    df_effect = (df_data.
-                 groupby(['campaign_id', 'type_event'])['total_events'].
-                 count().
-                 reset_index().
-                 fillna(0).
-                 pivot(index='campaign_id', columns='type_event', values='total_events'))
-
-    df_effect['effectiveness'] = df_effect.apply(
-        lambda row: (row['CLICKED'] / row['OPENED']) * 100
-        if row['CLICKED'] <= row['OPENED'] else 100, axis=1)
-
-    return df_effect.sort_values(by=['CLICKED', 'OPENED', 'effectiveness'], ascending=False).reset_index().head(10)
-
-
-def update_data():
+def main():
     last_refresh = st.empty()
     last_refresh.text(f'Last refresh at: {time.strftime("%Y-%m-%d %H:%M:%S")}')
 
     # Fetch events statistics from PostgresSQL
-    total_events, total_customers, most_loved_products = fetch_events_stats()
+    total_events = fetch_count_total_events()
+    total_customers = fetch_count_total_customers()
+    most_loved_products = fetch_most_loved_products()
 
     # Display metrics in two columns
     st.markdown("""---""")
@@ -190,4 +134,4 @@ def update_data():
 
 if __name__ == '__main__':
     st.title("Real Time Dashboard")
-    update_data()
+    main()
