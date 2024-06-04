@@ -21,6 +21,29 @@ user = os.environ.get('USER_NAME')
 password = os.environ.get('PASSWORD')
 
 
+st.set_page_config(layout="wide", page_title="Image Background Remover")
+
+
+@st.cache_data
+def get_name_campaigns(id_campaigns: list):
+    connection_string = f'host={host} dbname={database} user={user} password={password}'
+    query = """
+            SELECT uuid_campaign, name 
+            FROM public.campaign 
+            WHERE uuid_campaign IN %s;
+        """
+
+    with psycopg2.connect(connection_string) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (tuple(id_campaigns),))
+            results = cursor.fetchall()
+
+    # Convert the results to a pandas DataFrame
+    df = pd.DataFrame(results, columns=['uuid_campaign', 'name'])
+
+    return df
+
+
 @st.cache_data
 def fetch_events_stats():
     connection_string = 'host={} dbname={} user={} password={}'.format(host, database, user, password)
@@ -97,9 +120,15 @@ def plot_barplot_chart(df_data: pd.DataFrame):
 
 def plot_effectiveness_chart():
     df_data = fetch_effect_stats()
-    st.header("Effectiveness of the Top 10 campaigns")
-    st.table(df_data)
 
+    df_names = get_name_campaigns(df_data['campaign_id'].tolist())
+    df_merge = pd.merge(df_data, df_names, how='inner', left_on='campaign_id', right_on='uuid_campaign')
+    col1, col2 = st.columns(2)
+    with col1:
+        st.table(df_merge[['name', 'CLICKED', 'OPENED', 'effectiveness']])
+    with col2:
+        fig = px.pie(df_merge, values='CLICKED', names='name')
+        st.plotly_chart(fig)
 
 @st.cache_data
 def fetch_campaign_city_stats():
@@ -128,7 +157,7 @@ def fetch_effect_stats() -> pd.DataFrame:
         lambda row: (row['CLICKED'] / row['OPENED']) * 100
         if row['CLICKED'] <= row['OPENED'] else 100, axis=1)
 
-    return df_effect.sort_values(by=['CLICKED', 'OPENED', 'effectiveness'], ascending=False).head(10)
+    return df_effect.sort_values(by=['CLICKED', 'OPENED', 'effectiveness'], ascending=False).reset_index().head(10)
 
 
 def update_data():
@@ -155,9 +184,8 @@ def update_data():
     with col1_city:
         fig = px.bar(df_city, x='city', y='Total events', color=df_city['city'])
         st.plotly_chart(fig)
-        st.dataframe(df_city)
     with col2_city:
-        pass
+        st.dataframe(df_city)
 
 
 if __name__ == '__main__':
