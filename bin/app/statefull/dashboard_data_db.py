@@ -35,7 +35,7 @@ def with_connection(func):
     return with_connection_wrapper
 
 
-@st.cache_data
+@st.cache_data(ttl=2)
 @with_connection
 def get_name_campaigns(conn, id_campaigns: list) -> pd.DataFrame:
     query = """
@@ -50,7 +50,7 @@ def get_name_campaigns(conn, id_campaigns: list) -> pd.DataFrame:
     return df
 
 
-@st.cache_data
+@st.cache_data(ttl=2)
 @with_connection
 def fetch_count_total_events(conn) -> int:
     query = "SELECT COUNT(*) AS count_events FROM public.events;"
@@ -70,7 +70,7 @@ def fetch_count_total_customers(conn) -> int:
     return count_total_customers
 
 
-@st.cache_data
+@st.cache_data(ttl=2)
 @with_connection
 def fetch_most_loved_products(conn) -> list:
     query = """

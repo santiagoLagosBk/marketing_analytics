@@ -8,8 +8,9 @@ from statefull.dashboard_data_db import (get_name_campaigns, fetch_count_total_e
 import streamlit as st
 import plotly.express as px
 import matplotlib.pyplot as plt
+from streamlit_autorefresh import st_autorefresh
 
-st.set_page_config(layout="wide", page_title="Image Background Remover")
+st.set_page_config(layout="wide", page_title="Real-Time Dashboard")
 
 
 def create_kafka_consumer(topic_name):
@@ -31,7 +32,6 @@ def fetch_data_from_kafka(consumer):
     return data
 
 
-@st.cache_data
 def fetch_campaign_city_stats():
     consumer = create_kafka_consumer("events-city-aggregation")
     data = fetch_data_from_kafka(consumer)
@@ -43,21 +43,22 @@ def fetch_campaign_city_stats():
     return df_res
 
 
-@st.cache_data
+
 def fetch_effect_stats() -> pd.DataFrame:
     consumer = create_kafka_consumer("campaign-effectiveness")
     data = fetch_data_from_kafka(consumer)
     df_data = pd.DataFrame(data)
+
     df_effect = (df_data.
                  groupby(['campaign_id', 'type_event'])['total_events'].
-                 count().
+                 sum().
                  reset_index().
                  fillna(0).
                  pivot(index='campaign_id', columns='type_event', values='total_events'))
 
     df_effect['effectiveness'] = df_effect.apply(
-        lambda row: (row['CLICKED'] / row['OPENED']) * 100
-        if row['CLICKED'] <= row['OPENED'] else 100, axis=1)
+        lambda row: round(((row['CLICKED'] / row['OPENED']) * 100), 2)
+        if row['OPENED'] != 0 else 0.0, axis=1)
 
     return df_effect.sort_values(by=['CLICKED', 'OPENED', 'effectiveness'], ascending=False).reset_index().head(10)
 
@@ -93,7 +94,9 @@ def plot_effectiveness_chart():
     df_data = fetch_effect_stats()
 
     df_names = get_name_campaigns(df_data['campaign_id'].tolist())
-    df_merge = pd.merge(df_data, df_names, how='inner', left_on='campaign_id', right_on='uuid_campaign')
+    df_merge = pd.merge(df_data, df_names, how='inner', left_on='campaign_id', right_on='uuid_campaign').fillna(0.0)
+    df_merge[['CLICKED', 'OPENED']] = df_merge[['CLICKED', 'OPENED']].astype('int')
+
     col1, col2 = st.columns(2)
     with col1:
         st.table(df_merge[['name', 'CLICKED', 'OPENED', 'effectiveness']])
@@ -102,9 +105,21 @@ def plot_effectiveness_chart():
         st.plotly_chart(fig)
 
 
+def sidebar():
+    if st.session_state.get('last_update') is None:
+        st.session_state['last_update'] = time.time()
+
+    refresh_interval = st.sidebar.slider("Refresh interval (seconds)", 2, 60, 2)
+    st_autorefresh(interval=refresh_interval * 1000, key='auto')
+
+    if st.sidebar.button('Refresh data'):
+        st.session_state['last_update'] = time.time()
+        main()
+
+
 def main():
     last_refresh = st.empty()
-    last_refresh.text(f'Last refresh at: {time.strftime("%Y-%m-%d %H:%M:%S")}')
+    last_refresh.text(f"Last refreshed at: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Fetch events statistics from PostgresSQL
     total_events = fetch_count_total_events()
@@ -126,12 +141,15 @@ def main():
     col1_city, col2_city = st.columns(2)
     df_city = fetch_campaign_city_stats()
     with col1_city:
-        fig = px.bar(df_city, x='city', y='Total events', color=df_city['city'])
+        fig = px.bar(df_city, x='city', y='Total events', color='city')
         st.plotly_chart(fig)
     with col2_city:
         st.dataframe(df_city)
 
+    st.session_state['last_update'] = time.time()
+
 
 if __name__ == '__main__':
-    st.title("Real Time Dashboard")
+    st.title("Real-Time Dashboard")
+    sidebar()
     main()
