@@ -1,49 +1,16 @@
 import time
-from dotenv import load_dotenv
-import os
 import simplejson as json
-
-import streamlit as st
-import psycopg2
 import pandas as pd
 from kafka import KafkaConsumer
+from statefull.dashboard_data_db import (get_name_campaigns, fetch_count_total_events,
+                                         fetch_count_total_customers, fetch_most_loved_products)
 
-# Load environment variables from .env file
-load_dotenv()
+import streamlit as st
+import plotly.express as px
+import matplotlib.pyplot as plt
+from streamlit_autorefresh import st_autorefresh
 
-host = os.environ.get('HOST')
-port = os.environ.get('PORT')
-database = os.environ.get('DATABASE')
-user = os.environ.get('USER_NAME')
-password = os.environ.get('PASSWORD')
-
-
-@st.cache_data
-def fetch_events_stats():
-    connection_string = 'host={} dbname={} user={} password={}'.format(host, database, user, password)
-    with psycopg2.connect(connection_string) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute("""SELECT COUNT(*) AS count_events FROM public.events;""")
-            count_total_events = cursor.fetchone()[0]
-
-            cursor.execute("""SELECT COUNT(*) AS total_events FROM public.customers;""")
-            count_total_customers = cursor.fetchone()[0]
-
-            cursor.execute("""
-                WITH events_count AS (
-                    SELECT product_id, COUNT(product_id) count_product
-                    FROM public.events
-                    WHERE product_id IS NOT NULL
-                    GROUP BY product_id ORDER BY count_product DESC LIMIT 10
-                )
-                SELECT pr.title,pr.image,pr.category,ev.count_product, DENSE_RANK() OVER(order by ev.count_product DESC) as rank
-                FROM events_count ev
-                INNER JOIN public.product pr
-                ON ev.product_id = pr.id;
-            """)
-            most_loved_products = cursor.fetchall()
-
-    return count_total_events, count_total_customers, most_loved_products
+st.set_page_config(layout="wide", page_title="Real-Time Dashboard")
 
 
 def create_kafka_consumer(topic_name):
@@ -65,54 +32,124 @@ def fetch_data_from_kafka(consumer):
     return data
 
 
-@st.cache_data
 def fetch_campaign_city_stats():
     consumer = create_kafka_consumer("events-city-aggregation")
     data = fetch_data_from_kafka(consumer)
-    if len(data) == 0:
-        data = {
-            'campaign_id': ['None'],
-            'city': ['None'],
-            'count': [0]
-        }
-
-    return pd.DataFrame(data).sort_values(by='count', ascending=False).head(10)
+    df = pd.DataFrame(data)
+    df_res = (df.groupby(['city']).agg({'count': 'sum'}).
+              reset_index().
+              rename(columns={'count': 'Total events'}).
+              sort_values(by='Total events', ascending=False).head(10))
+    return df_res
 
 
-def update_data():
-    last_refresh = st.empty()
-    last_refresh.text(f'Last refresh at: {time.strftime("%Y-%m-%d %H:%M:%S")}')
 
-    # Fetch events statistics from PostgresSQL
-    total_events, total_customers, most_loved_products = fetch_events_stats()
+def fetch_effect_stats() -> pd.DataFrame:
+    consumer = create_kafka_consumer("campaign-effectiveness")
+    data = fetch_data_from_kafka(consumer)
+    df_data = pd.DataFrame(data)
 
-    st.markdown("""---""")
+    df_effect = (df_data.
+                 groupby(['campaign_id', 'type_event'])['total_events'].
+                 sum().
+                 reset_index().
+                 fillna(0).
+                 pivot(index='campaign_id', columns='type_event', values='total_events'))
+
+    df_effect['effectiveness'] = df_effect.apply(
+        lambda row: round(((row['CLICKED'] / row['OPENED']) * 100), 2)
+        if row['OPENED'] != 0 else 0.0, axis=1)
+
+    return df_effect.sort_values(by=['CLICKED', 'OPENED', 'effectiveness'], ascending=False).reset_index().head(10)
+
+
+def plot_header(total_events, total_customers):
     col1, col2 = st.columns(2)
     col1.metric('Total events', total_events)
     col2.metric('Total customers', total_customers)
 
-    st.markdown("""---""")
-    st.title('Best Ranked Product')
 
+def plot_most_loved_products(most_loved_products):
     columns = ['title', 'image', 'category', 'count_product', 'rank']
-
-    # Create a DataFrame
     df = pd.DataFrame(most_loved_products, columns=columns)
     best_product = df[df['rank'] == 1].iloc[0]
 
+    # Display the best-ranked product details
     col1, col2 = st.columns([1, 2])
-
-
     with col1:
         st.image(best_product['image'], width=200)
-
-    # Display the details in the second column
     with col2:
         st.header(best_product['title'])
         st.subheader(f"Category: {best_product['category']}")
-        st.subheader(f"Total Count: {best_product['count_product']}")
+        st.subheader(f"Clicks in the product: {best_product['count_product']}")
+
+
+def plot_barplot_chart(df_data: pd.DataFrame):
+    plt.bar(df_data['city'], df_data['count'])
+    plt.tight_layout()
+    return plt
+
+
+def plot_effectiveness_chart():
+    df_data = fetch_effect_stats()
+
+    df_names = get_name_campaigns(df_data['campaign_id'].tolist())
+    df_merge = pd.merge(df_data, df_names, how='inner', left_on='campaign_id', right_on='uuid_campaign').fillna(0.0)
+    df_merge[['CLICKED', 'OPENED']] = df_merge[['CLICKED', 'OPENED']].astype('int')
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.table(df_merge[['name', 'CLICKED', 'OPENED', 'effectiveness']])
+    with col2:
+        fig = px.pie(df_merge, values='CLICKED', names='name')
+        st.plotly_chart(fig)
+
+
+def sidebar():
+    if st.session_state.get('last_update') is None:
+        st.session_state['last_update'] = time.time()
+
+    refresh_interval = st.sidebar.slider("Refresh interval (seconds)", 2, 60, 2)
+    st_autorefresh(interval=refresh_interval * 1000, key='auto')
+
+    if st.sidebar.button('Refresh data'):
+        st.session_state['last_update'] = time.time()
+        main()
+
+
+def main():
+    last_refresh = st.empty()
+    last_refresh.text(f"Last refreshed at: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Fetch events statistics from PostgresSQL
+    total_events = fetch_count_total_events()
+    total_customers = fetch_count_total_customers()
+    most_loved_products = fetch_most_loved_products()
+
+    # Display metrics in two columns
+    st.markdown("""---""")
+    plot_header(total_events, total_customers)
+    plot_effectiveness_chart()
+
+    # Display best-ranked product
+    st.markdown("""---""")
+    st.title('Best Ranked Product')
+    plot_most_loved_products(most_loved_products)
+
+    st.markdown("""---""")
+    st.subheader('Cities with most events traffic')
+    col1_city, col2_city = st.columns(2)
+    df_city = fetch_campaign_city_stats()
+    with col1_city:
+        fig = px.bar(df_city, x='city', y='Total events', color='city')
+        st.plotly_chart(fig)
+    with col2_city:
+        st.dataframe(df_city)
+
+    st.session_state['last_update'] = time.time()
 
 
 if __name__ == '__main__':
-    st.title("Real Time Dashboard")
-    update_data()
+    st.title("Real-Time Dashboard")
+    sidebar()
+    main()

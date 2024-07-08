@@ -4,3 +4,6 @@ settings/__pycache__
 .venv
 .env
 checkpoints
+../__pycache__/
+../settings/__pycache__/
+../settings/db_settings/__pycache__/
