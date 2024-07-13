@@ -132,7 +132,7 @@ The project also calculates and displays key marketing metrics, including:
 ### Screenshots
 
 - **Streamlit Dashboard**:
-  ![Streamlit Dashboard](./docs/images/Screenshot from 2024-07-07 23-15-39.png)
+  ![Streamlit Dashboard](/docs/images/Screenshot from 2024-07-07 23-15-39.png)
 - --
   ![Streamlit Dashboard](./docs/images/Screenshot from 2024-07-07 23-34-33.png)
 - --
