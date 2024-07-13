@@ -132,18 +132,18 @@ The project also calculates and displays key marketing metrics, including:
 ### Screenshots
 
 - **Streamlit Dashboard**:
-  ![Streamlit Dashboard](docs/images/Screenshot from 2024-07-07 23-15-39.png)
+  ![Streamlit Dashboard](./docs/images/Screenshot from 2024-07-07 23-15-39.png)
 - --
-  ![Streamlit Dashboard](docs/images/Screenshot from 2024-07-07 23-34-33.png)
+  ![Streamlit Dashboard](./docs/images/Screenshot from 2024-07-07 23-34-33.png)
 - --
-  ![Streamlit Dashboard](docs/images/Screenshot from 2024-07-07 23-35-06.png)
+  ![Streamlit Dashboard](./docs/images/Screenshot from 2024-07-07 23-35-06.png)
 
 
 ## Realtime dashboard
 - **Streamlit Dashboard**:
-  [![Watch the video](docs/images/Screenshot from 2024-07-07 23-15-39.png)](docs/video/Screencast from 07-07-2024 11:28:55 PM.webm)
+  [![Watch the video](./docs/images/Screenshot from 2024-07-07 23-15-39.png)](./docs/video/Screencast from 07-07-2024 11:28:55 PM.webm)
 - --
-   [![Watch the video](docs/images/Screenshot from 2024-07-07 23-15-39.png)](docs/video/Screencast from 07-07-2024 11:30:10 PM.webm)
+   [![Watch the video](./docs/images/Screenshot from 2024-07-07 23-15-39.png)](./docs/video/Screencast from 07-07-2024 11:30:10 PM.webm)
 
 
 ## Contributing
