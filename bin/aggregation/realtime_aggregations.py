@@ -81,7 +81,7 @@ def get_products(spark_obj) -> DataFrame:
 
 
 def read_kafka_stream(spark_obj):
-    schema_events = StructType(
+    schema_events = StructType( 
         [
             StructField("customer_id", IntegerType(), False),
             StructField("campaign_id", StringType(), False),
